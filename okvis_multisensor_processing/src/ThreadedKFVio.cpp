@@ -132,42 +132,43 @@ void ThreadedKFVio::init() {
     }
   }
   
-  startThreads();//开始线程
+  startThreads(); //开始所有线程
 }
 
 // Start all threads.
-//开始所有线程
+//开始所有线程，初始化线程容器
 void ThreadedKFVio::startThreads() {
 
   // consumer threads
-  // 处理帧的线程容器,每一个线程调用frameConsumerLoop,不过输入参数不一样
+  // 处理帧的,每一个线程调用frameConsumerLoop,不过输入参数不一样
   for (size_t i = 0; i < numCameras_; ++i) {
     frameConsumerThreads_.emplace_back(&ThreadedKFVio::frameConsumerLoop, this, i);
   }
-  // 处理特征点的线程容器,每一个线程都调用matchingLoop
+  // 影像匹配，处理特征点,每一个线程都调用 matchingLoop
   for (size_t i = 0; i < numCameraPairs_; ++i) {
     keypointConsumerThreads_.emplace_back(&ThreadedKFVio::matchingLoop, this);
   }
   // 处理IMU的线程
   imuConsumerThread_ = std::thread(&ThreadedKFVio::imuConsumerLoop, this);
-  // 求取位置的线程
+
+  // 求取位置的线程（当前没有启用）
   positionConsumerThread_ = std::thread(&ThreadedKFVio::positionConsumerLoop,
                                         this);
-  //GPS处理的线程
+  //GPS处理的线程（当前没有启用）
   gpsConsumerThread_ = std::thread(&ThreadedKFVio::gpsConsumerLoop, this);
-  //磁力处理的线程
+  //磁力处理的线程（当前没有启用）
   magnetometerConsumerThread_ = std::thread(
       &ThreadedKFVio::magnetometerConsumerLoop, this);
-  //不同处理的线程
+  //不同处理的线程（当前没有启用）
   differentialConsumerThread_ = std::thread(
       &ThreadedKFVio::differentialConsumerLoop, this);
 
   // algorithm threads
   //可视化线程
   visualizationThread_ = std::thread(&ThreadedKFVio::visualizationLoop, this);
-  //优化线程
+  //后端优化线程
   optimizationThread_ = std::thread(&ThreadedKFVio::optimizationLoop, this);
-  //消息发布线程
+  //消息发布线程，最终位姿计算结果
   publisherThread_ = std::thread(&ThreadedKFVio::publisherLoop, this);
 }
 
@@ -269,8 +270,7 @@ bool ThreadedKFVio::addKeypoints(
   return false;
 }
 
-// Add an IMU measurement.
-// 向状态求解器中添加IMU的观测信息
+// 向状态求解器中添加IMU的观测信息 (time, acc, gyro)，等待其他线程进行处理
 bool ThreadedKFVio::addImuMeasurement(const okvis::Time & stamp,
                                       const Eigen::Vector3d & alpha,
                                       const Eigen::Vector3d & omega) {
@@ -279,7 +279,7 @@ bool ThreadedKFVio::addImuMeasurement(const okvis::Time & stamp,
   imu_measurement.measurement.accelerometers = alpha;// 赋值加速度
   imu_measurement.measurement.gyroscopes = omega;//赋值角速度
   imu_measurement.timeStamp = stamp;//赋值时间戳
-  //imuMeasurementsReceived_的观测序列
+  //观测序列
   if (blocking_) {
     imuMeasurementsReceived_.PushBlockingIfFull(imu_measurement, 1);//添加IMU观测数据，必须满足原序列中元素的个数小于1
     return true;
@@ -599,7 +599,7 @@ void ThreadedKFVio::matchingLoop() {
 }
 
 // Loop to process IMU measurements.
-//IMU 帧处理函数
+//IMU处理线程，循环运行
 void ThreadedKFVio::imuConsumerLoop() {
   okvis::ImuMeasurement data;
   TimerSwitchable processImuTimer("0 processImuMeasurements",true);
@@ -611,12 +611,14 @@ void ThreadedKFVio::imuConsumerLoop() {
     processImuTimer.start();//表示开始一个processImuTimer
     okvis::Time start;
     const okvis::Time* end;  // do not need to copy end timestamp
+
     {
       std::lock_guard<std::mutex> imuLock(imuMeasurements_mutex_);
       OKVIS_ASSERT_TRUE(Exception,
                         imuMeasurements_.empty()
                         || imuMeasurements_.back().timeStamp < data.timeStamp,
                         "IMU measurement from the past received");
+      
       //Should the state that is propagated with IMU messages be published? Or just the optimized ones?
       //IMU信息积分得到的状态是否被打印
       if (parameters_.publishing.publishImuPropagatedState) {
@@ -633,13 +635,16 @@ void ThreadedKFVio::imuConsumerLoop() {
           start = okvis::Time(0, 0);
         end = &data.timeStamp;//结束时间为当前IMU的时间戳
       }
-      imuMeasurements_.push_back(data);//添加IMU数据到观测序列
+
+      // 将imu数据 push 到这个 std::deque 中
+      // 随后在 frameConsumerLoop 中调用函数 getImuMeasurements，将其取出进行处理。
+      imuMeasurements_.push_back(data); //添加IMU数据到观测序列
     }  // unlock _imuMeasurements_mutex
 
-    // notify other threads that imu data with timeStamp is here.
-    // 标记新来的一帧数据的时间戳已经大于要求的时间界限
+    // 向其他线程申明，imuMeasurements_中的数据时间已更新到timeStamp这个时间戳 
     imuFrameSynchronizer_.gotImuData(data.timeStamp);
-    //如果要求IMU信息积分得到的状态被打印
+
+    //如果要求添加IMU积分的结果
     if (parameters_.publishing.publishImuPropagatedState) {
       Eigen::Matrix<double, 15, 15> covariance;
       Eigen::Matrix<double, 15, 15> jacobian;
@@ -661,6 +666,8 @@ void ThreadedKFVio::imuConsumerLoop() {
                 *parameters_.nCameraSystem.T_SC(i)));
       }
       result.onlyPublishLandmarks = false;//赋值仅打印地标点为错
+
+      // 积分结果存放，在 publisherLoop 会输出
       optimizationResults_.PushNonBlockingDroppingIfFull(result,1);//如果序列optimizationResults_中的值大于1,则需要pop掉最老的一个，然后才可以添加result
     }
     processImuTimer.stop();
@@ -794,8 +801,8 @@ int ThreadedKFVio::deleteImuMeasurements(const okvis::Time& eraseUntil) {
   return removed;
 }
 
-// Loop that performs the optimization and marginalisation.
-// 优化和边缘化线程
+// Loop that performs the optimization and marginalisation. 优化和边缘化线程
+// 真正的后端处理函数。分为三部分：optimization, marginalization, afterOptimization
 void ThreadedKFVio::optimizationLoop() {
   TimerSwitchable optimizationTimer("3.1 optimization",true);
   TimerSwitchable marginalizationTimer("3.2 marginalization",true);

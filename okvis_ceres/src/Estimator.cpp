@@ -309,11 +309,10 @@ bool Estimator::addStates(
               states.sensors.at(SensorStates::Imu).at(i).at(ImuSensorStates::SpeedAndBias).id));
       //mapPtr_->isJacobianCorrect(id,1.0e-6);
     }
-  }
+  } // end if statesMap.size() == 1
   else{
-    // add IMU error terms
-    // 添加IMU的误差
-    for (size_t i = 0; i < imuParametersVec_.size(); ++i) {
+    // add IMU error terms 添加IMU误差项
+    for (size_t i = 0; i < imuParametersVec_.size(); ++i) { //循环每个imu
       //初始化ImuError
       std::shared_ptr<ceres::ImuError> imuError(
           new ceres::ImuError(imuMeasurements, imuParametersVec_.at(i),

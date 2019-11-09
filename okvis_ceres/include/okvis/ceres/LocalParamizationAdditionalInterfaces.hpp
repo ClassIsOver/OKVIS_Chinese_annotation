@@ -47,22 +47,33 @@ namespace okvis {
 /// \brief ceres Namespace for ceres-related functionality implemented in okvis.
 namespace ceres {
 
+// 看起来只是用于测试子类 PoseLocalParameterization 等的雅可比计算是否正确
+// 调用verify即可测试。
 /// \brief Provides some additional interfaces to ceres' LocalParamization
 ///        than are needed in the generic marginalisation okvis::ceres::MarginalizationError.
 class LocalParamizationAdditionalInterfaces {
  public:
 
+  // virtual关键字
+  // 用在基类中，标记虚函数，表示可override。举例：
+  // 基类中定义 virtual fun(){}，且在子类中重载了fun
+  // 用基类指针p 指向子类的实例时，fun p->fun() 调用子类的函数
+  // =0 关键字
+  // 和 virtual一起出现，表示该函数是纯虚函数，基类中不定义，必须由子类实现。
+  // ** 含有纯虚函数的类为抽象类，不可实例化
+
   /// \brief Trivial destructor.
   virtual ~LocalParamizationAdditionalInterfaces() {
   }
 
+  // 计算从 x 到 x_plus_delta 要减去的扰动 delta？ 
   /// \brief Computes the minimal difference between a variable x and a perturbed variable x_plus_delta
   /// @param[in] x Variable.
   /// @param[in] x_plus_delta Perturbed variable.
   /// @param[out] delta minimal difference.
   /// \return True on success.
   virtual bool Minus(const double* x, const double* x_plus_delta,
-                     double* delta) const = 0;
+                     double* delta) const = 0; // const标记静态函数，不修改类成员。=0标记纯虚函数
 
   /// \brief Computes the Jacobian from minimal space to naively overparameterised space as used by ceres.
   /// @param[in] x Variable.
@@ -70,9 +81,10 @@ class LocalParamizationAdditionalInterfaces {
   /// \return True on success.
   virtual bool ComputeLiftJacobian(const double* x, double* jacobian) const = 0;
 
+  // 验证子类实现的正确性。唯一在该基类中实现了的函数。
   /// \brief Verifies the correctness of an inplementation by means of numeric Jacobians.
-  /// @param[in] x_raw Linearisation point of the variable.
-  /// @param[in] purturbation_magnitude Magnitude of the delta used for numeric Jacobians.
+  /// @param[in] x_raw                  线性化的位置 Linearisation point of the variable.
+  /// @param[in] purturbation_magnitude 扰动的量级 Magnitude of the delta used for numeric Jacobians.
   /// \return True on success.
   virtual bool verify(const double* x_raw, double purturbation_magnitude = 1.0e-6) const ;
 };

@@ -267,7 +267,7 @@ class ImuError :
   /// \brief The Jacobian of the increment (w/o biases).
   mutable Eigen::Matrix<double,15,15> P_delta_ = Eigen::Matrix<double,15,15>::Zero();
 
-  /// \brief Reference biases that are updated when called redoPreintegration.
+  /// 上一帧的速度和零偏 \brief Reference biases that are updated when called redoPreintegration.
   mutable SpeedAndBiases speedAndBiases_ref_ = SpeedAndBiases::Zero();
 
   mutable bool redo_ = true; ///< Keeps track of whether or not this redoPreintegration() needs to be called.

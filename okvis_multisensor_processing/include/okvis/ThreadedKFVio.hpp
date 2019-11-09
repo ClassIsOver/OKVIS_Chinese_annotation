@@ -343,10 +343,12 @@ class ThreadedKFVio : public VioInterface {
   /// @name Measurement input queues
   /// @{
 
-  /// Camera measurement input queues. For each camera in the configuration one.
+// ThreadSafeQueue 对数据的处理有两种方式，blocking 和 non blocking，控制对列繁忙的时候是不是要把数据丢弃。
+  /// ThreadSafeQueue容器 包含的CameraMeasurement队列，每个相机一个
   std::vector<std::shared_ptr<
       okvis::threadsafe::ThreadSafeQueue<std::shared_ptr<okvis::CameraMeasurement> > > > cameraMeasurementsReceived_;
-  /// IMU measurement input queue.
+  
+  /// ThreadSafeQueue容器 包含的ImuMeasurement队列
   okvis::threadsafe::ThreadSafeQueue<okvis::ImuMeasurement> imuMeasurementsReceived_;
 
   /// Position measurement input queue.

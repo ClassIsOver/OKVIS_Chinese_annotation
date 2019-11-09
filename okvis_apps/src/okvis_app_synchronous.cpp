@@ -241,7 +241,9 @@ int main(int argc, char **argv)
   okvis::VioParameters parameters;
   vio_parameters_reader.getParameters(parameters);//将读取到的参数赋值给变量parameters
 
-  okvis::ThreadedKFVio okvis_estimator(parameters);//用参数构造ThreadedKFVio类，成功后SLAM系统开始运行
+  // ---------------- 用参数构造ThreadedKFVio类，成功后SLAM系统开始运行 -------------
+  okvis::ThreadedKFVio okvis_estimator(parameters);
+  // --------------------------------------------------------------------------
 
   PoseViewer poseViewer;//定义画图工具
   ///bind表示绑定函数publishFullStateAsCallback, 其是poseViewer中的成员函数, 其余四个参数固定, 延迟到我们需要的时候调用
@@ -284,6 +286,8 @@ int main(int argc, char **argv)
   int num_camera_images = 0;
   //image_names为一个2维的容器,每一维又是一个记录图像信息的容器
   std::vector < std::vector < std::string >> image_names(numCameras);
+
+
   for (size_t i = 0; i < numCameras; ++i) {
     num_camera_images = 0;
     std::string folder(path + "/cam" + std::to_string(i) + "/data");//储存图像信息的文件夹
@@ -382,7 +386,8 @@ int main(int argc, char **argv)
         t_imu = okvis::Time(std::stoi(seconds), std::stoi(nanoseconds));//将IMU的时间戳赋值给t_imu
 
         // add the IMU measurement for (blocking) processing
-        //imu比初始帧图像早小于1s,或者imu比初始帧图像晚
+        // IMU 需要在影像时间-1s 之前初始化
+        // deltaT = 0, start 是第一张影像的时间
         if (t_imu - start + okvis::Duration(1.0) > deltaT) {
           okvis_estimator.addImuMeasurement(t_imu, acc, gyr);//添加IMU数据到okvis_estimator中
         }

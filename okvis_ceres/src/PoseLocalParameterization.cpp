@@ -128,7 +128,7 @@ bool PoseLocalParameterization::plusJacobian(const double* x,
 }
 
 // Computes the Jacobian from minimal space to naively overparameterised space as used by ceres.
-// 残差error对measurement求导
+// 反过来。残差error对measurement求导
 bool PoseLocalParameterization::liftJacobian(const double* x,
                                              double* jacobian) {
 

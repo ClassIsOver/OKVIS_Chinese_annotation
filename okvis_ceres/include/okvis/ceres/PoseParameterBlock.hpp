@@ -48,7 +48,7 @@
 namespace okvis {
 namespace ceres{
 
-/// \brief Wraps the parameter block for a pose estimate
+/// 定义了pose类的plus和雅可比计算 \brief Wraps the parameter block for a pose estimate
 class PoseParameterBlock : public ParameterBlockSized<7,6,okvis::kinematics::Transformation>{
 public:
 
